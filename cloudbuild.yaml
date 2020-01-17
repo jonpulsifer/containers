@@ -1,12 +1,19 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'downloader', '-f', 'ubuntu-1804-base/builder.Dockerfile', 'ubuntu-1804-base']
+  id: builder
+- name: 'downloader'
+  args: ['make', '-C', 'ubuntu-1804-base', 'container']
+  id: downloader
+  waitFor: ['builder']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/ubuntu-1804-base', 'ubuntu-1804-base']
+  waitFor: ['downloader']
+- name: 'gcr.io/cloud-builders/docker'
   args: ['build', '-t', 'gcr.io/$PROJECT_ID/ejson2env', 'ejson2env']
   waitFor: ['-']
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '-t', 'gcr.io/$PROJECT_ID/external-dns', 'external-dns']
-  waitFor: ['-']
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/$PROJECT_ID/minecraft', 'minecraft']
   waitFor: ['-']
 - name: 'gcr.io/cloud-builders/docker'
   args: ['build', '-t', 'gcr.io/$PROJECT_ID/pack', 'pack']
@@ -14,5 +21,5 @@ steps:
 images:
 - gcr.io/$PROJECT_ID/ejson2env
 - gcr.io/$PROJECT_ID/external-dns
-- gcr.io/$PROJECT_ID/minecraft
 - gcr.io/$PROJECT_ID/pack
+- gcr.io/$PROJECT_ID/ubuntu-1804-base

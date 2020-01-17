@@ -1,5 +1,5 @@
 FROM alpine
-ENV PACK_VERSION=${PACK_VERSION:-v0.5.0}
+ENV PACK_VERSION=${PACK_VERSION:-v0.6.0}
 RUN wget -qO - https://github.com/buildpack/pack/releases/download/${PACK_VERSION}/pack-${PACK_VERSION}-linux.tgz | tar xzf -
 
 FROM scratch
