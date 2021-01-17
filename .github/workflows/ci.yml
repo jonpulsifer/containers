@@ -22,19 +22,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Generate Docker Meta
-        id: meta
         uses: crazy-max/ghaction-docker-meta@v1
+        id: meta
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.container }}
           tag-sha: true
       - name: Build and push ${{ matrix.container }}
         uses: docker/build-push-action@v2
-        id: ${{ matrix.container }}
         with:
           push: ${{ github.event_name != 'pull_request' }}
           context: ${{ matrix.container }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-
-          
