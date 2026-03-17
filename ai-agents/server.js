@@ -686,6 +686,7 @@ function startOpenClawGateway() {
             auth: { token: openclawToken, mode: "token" },
             controlUi: {
               dangerouslyAllowHostHeaderOriginFallback: true,
+              dangerouslyDisableDeviceAuth: true,
             },
           },
         },
