@@ -70,11 +70,21 @@ COPY --from=pty-builder /build/node_modules /opt/ghostty-web/node_modules
 # Custom server
 COPY server.js /opt/ghostty-web/server.js
 
-WORKDIR /home/node
-RUN chown -R 1000:1000 /home/node
+# Agent user (non-root, dedicated to agent workloads)
+RUN groupadd -g 1337 agent \
+    && useradd -m -u 1337 -g agent -s /bin/bash agent
+
+WORKDIR /home/agent
+RUN chown -R agent:agent /home/agent
+
+# Persist agent home (tool configs, shell history, openclaw state, etc.)
+VOLUME /home/agent
 
 EXPOSE 8080
 EXPOSE 18789
-USER 1000:1000
+USER agent:agent
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["node", "/opt/ghostty-web/server.js"]

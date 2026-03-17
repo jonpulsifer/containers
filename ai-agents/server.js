@@ -7,6 +7,7 @@
  * ghostty-web terminal connected to a PTY running the chosen command.
  */
 
+import { spawn } from "child_process";
 import fs from "fs";
 import http from "http";
 import { homedir } from "os";
@@ -47,17 +48,9 @@ const TOOLS = [
   {
     id: "openclaw",
     name: "OpenClaw",
-    description: "Self-hosted AI assistant TUI",
+    description: "Self-hosted AI assistant (gateway auto-started on :18789)",
     icon: "\ud83e\udea4",
     cmd: "openclaw",
-  },
-  {
-    id: "openclaw-gw",
-    name: "OpenClaw Gateway",
-    description: "OpenClaw gateway server (dashboard on :18789)",
-    icon: "\u2699",
-    cmd: "openclaw",
-    args: ["gateway", "--bind", "lan", "--allow-unconfigured"],
   },
   {
     id: "bash",
@@ -502,6 +495,26 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
 
+  // Health probes (k8s liveness/readiness)
+  if (pathname === "/healthz") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
+    return;
+  }
+
+  if (pathname === "/readyz") {
+    const gatewayUp = isGatewayHealthy();
+    const status = gatewayUp ? 200 : 503;
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        status: gatewayUp ? "ok" : "not ready",
+        gateway: gatewayUp ? "running" : "down",
+      })
+    );
+    return;
+  }
+
   // Landing page
   if (pathname === "/" || pathname === "/index.html") {
     res.writeHead(200, { "Content-Type": "text/html" });
@@ -618,27 +631,108 @@ wss.on("connection", (ws, req) => {
 });
 
 // ============================================================================
+// OpenClaw Gateway (background service)
+// ============================================================================
+
+let openclawGateway = null;
+let gatewayRestarts = 0;
+let shuttingDown = false;
+
+const GATEWAY_RESTART_BASE_DELAY = 1000;
+const GATEWAY_RESTART_MAX_DELAY = 30000;
+
+function startOpenClawGateway() {
+  if (shuttingDown) return;
+
+  // Ensure openclaw config exists with sane container defaults
+  const openclawDir = path.join(homedir(), ".openclaw");
+  const openclawConfig = path.join(openclawDir, "openclaw.json");
+  if (!fs.existsSync(openclawConfig)) {
+    fs.mkdirSync(openclawDir, { recursive: true });
+    fs.writeFileSync(
+      openclawConfig,
+      JSON.stringify(
+        {
+          gateway: {
+            controlUi: {
+              dangerouslyAllowHostHeaderOriginFallback: true,
+            },
+          },
+        },
+        null,
+        2
+      )
+    );
+    console.log(`[openclaw-gw] wrote default config to ${openclawConfig}`);
+  }
+
+  openclawGateway = spawn(
+    "openclaw",
+    ["gateway", "--bind", "lan", "--allow-unconfigured"],
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env },
+    }
+  );
+
+  openclawGateway.stdout.on("data", (data) => {
+    process.stdout.write(`[openclaw-gw] ${data}`);
+  });
+
+  openclawGateway.stderr.on("data", (data) => {
+    process.stderr.write(`[openclaw-gw] ${data}`);
+  });
+
+  openclawGateway.on("exit", (code, signal) => {
+    openclawGateway = null;
+    if (shuttingDown) return;
+
+    gatewayRestarts++;
+    const delay = Math.min(
+      GATEWAY_RESTART_BASE_DELAY * Math.pow(2, gatewayRestarts - 1),
+      GATEWAY_RESTART_MAX_DELAY
+    );
+    console.log(
+      `[openclaw-gw] exited (code=${code}, signal=${signal}), restarting in ${delay}ms (attempt ${gatewayRestarts})`
+    );
+    setTimeout(startOpenClawGateway, delay);
+  });
+
+  // Reset restart counter after 60s of stable running
+  openclawGateway.on("spawn", () => {
+    console.log(`[openclaw-gw] started (pid=${openclawGateway.pid})`);
+    setTimeout(() => {
+      if (openclawGateway) gatewayRestarts = 0;
+    }, 60000);
+  });
+}
+
+function isGatewayHealthy() {
+  return openclawGateway !== null && openclawGateway.exitCode === null;
+}
+
+// ============================================================================
 // Start
 // ============================================================================
 
-process.on("SIGINT", () => {
+function shutdown() {
+  shuttingDown = true;
+  if (openclawGateway) {
+    openclawGateway.kill();
+    openclawGateway = null;
+  }
   for (const [ws, session] of sessions.entries()) {
     session.pty.kill();
     ws.close();
   }
   wss.close();
   process.exit(0);
-});
+}
 
-process.on("SIGTERM", () => {
-  for (const [ws, session] of sessions.entries()) {
-    session.pty.kill();
-    ws.close();
-  }
-  wss.close();
-  process.exit(0);
-});
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 server.listen(PORT, () => {
   console.log(`Agent Sandbox server listening on http://0.0.0.0:${PORT}`);
+  startOpenClawGateway();
 });
