@@ -59,7 +59,8 @@ RUN apt-get update && apt-get -y upgrade && \
 RUN npm install -g \
       bun \
       @anthropic-ai/claude-code \
-      opencode-ai
+      opencode-ai \
+      openclaw
 
 # ghostty-web assets
 COPY --from=ghostty-builder /build/dist /opt/ghostty-web/dist
@@ -73,6 +74,7 @@ WORKDIR /home/node
 RUN chown -R 1000:1000 /home/node
 
 EXPOSE 8080
+EXPOSE 18789
 USER 1000:1000
 
 ENTRYPOINT ["node", "/opt/ghostty-web/server.js"]

@@ -45,6 +45,21 @@ const TOOLS = [
     cmd: "opencode",
   },
   {
+    id: "openclaw",
+    name: "OpenClaw",
+    description: "Self-hosted AI assistant TUI",
+    icon: "\ud83e\udea4",
+    cmd: "openclaw",
+  },
+  {
+    id: "openclaw-gw",
+    name: "OpenClaw Gateway",
+    description: "OpenClaw gateway server (dashboard on :18789)",
+    icon: "\u2699",
+    cmd: "openclaw",
+    args: ["gateway", "--bind", "lan", "--allow-unconfigured"],
+  },
+  {
     id: "bash",
     name: "Shell",
     description: "Interactive bash session",
@@ -60,7 +75,7 @@ function getShell() {
 
 function getCommand(cmdId) {
   const tool = TOOLS.find((t) => t.id === cmdId);
-  if (tool && tool.cmd) return [tool.cmd, []];
+  if (tool && tool.cmd) return [tool.cmd, tool.args || []];
   return [getShell(), []];
 }
 
