@@ -227,7 +227,7 @@ function landingPage() {
         (t) =>
           t.href
             ? `
-        <a class="tool-card" data-port-href="${t.href}${openclawToken ? '?token=' + openclawToken : ''}" target="_blank" rel="noopener">
+        <a class="tool-card" data-port-href="${t.href}${openclawToken ? '#token=' + openclawToken : ''}" target="_blank" rel="noopener">
           <div class="tool-icon">${t.icon}</div>
           <div class="tool-name">${t.name}</div>
           <div class="tool-desc">${t.description}</div>
@@ -685,6 +685,7 @@ function startOpenClawGateway() {
           gateway: {
             auth: { token: openclawToken, mode: "token" },
             controlUi: {
+              allowInsecureAuth: true,
               dangerouslyAllowHostHeaderOriginFallback: true,
               dangerouslyDisableDeviceAuth: true,
             },
