@@ -47,10 +47,18 @@ const TOOLS = [
   },
   {
     id: "openclaw",
-    name: "OpenClaw",
-    description: "Self-hosted AI assistant (gateway auto-started on :18789)",
+    name: "OpenClaw TUI",
+    description: "Self-hosted AI assistant terminal interface",
     icon: "\ud83e\udea4",
     cmd: "openclaw",
+    args: ["tui"],
+  },
+  {
+    id: "openclaw-gw",
+    name: "OpenClaw Gateway",
+    description: "Web dashboard for the OpenClaw gateway",
+    icon: "\u2699",
+    href: ":18789",
   },
   {
     id: "bash",
@@ -214,7 +222,15 @@ const LANDING_PAGE = `<!doctype html>
     <p class="subtitle">Isolated AI agent runtime with web terminal access</p>
     <div class="tools">
       ${TOOLS.map(
-        (t) => `
+        (t) =>
+          t.href
+            ? `
+        <a class="tool-card" data-port-href="${t.href}" target="_blank" rel="noopener">
+          <div class="tool-icon">${t.icon}</div>
+          <div class="tool-name">${t.name}</div>
+          <div class="tool-desc">${t.description}</div>
+        </a>`
+            : `
         <a class="tool-card" href="/terminal?cmd=${t.id}">
           <div class="tool-icon">${t.icon}</div>
           <div class="tool-name">${t.name}</div>
@@ -224,6 +240,11 @@ const LANDING_PAGE = `<!doctype html>
     </div>
     <footer>Powered by <a href="https://github.com/coder/ghostty-web">ghostty-web</a> + <a href="https://gvisor.dev">gVisor</a></footer>
   </div>
+  <script>
+    document.querySelectorAll('[data-port-href]').forEach(a => {
+      a.href = location.protocol + '//' + location.hostname + a.dataset.portHref;
+    });
+  </script>
 </body>
 </html>`;
 
