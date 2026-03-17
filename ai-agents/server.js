@@ -670,11 +670,18 @@ function startOpenClawGateway() {
   const openclawConfig = path.join(openclawDir, "openclaw.json");
   if (!fs.existsSync(openclawConfig)) {
     fs.mkdirSync(openclawDir, { recursive: true });
+
+    const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+    const authConfig = gatewayToken
+      ? { token: gatewayToken, mode: "token" }
+      : { mode: "none" };
+
     fs.writeFileSync(
       openclawConfig,
       JSON.stringify(
         {
           gateway: {
+            auth: authConfig,
             controlUi: {
               dangerouslyAllowHostHeaderOriginFallback: true,
             },
@@ -684,7 +691,9 @@ function startOpenClawGateway() {
         2
       )
     );
-    console.log(`[openclaw-gw] wrote default config to ${openclawConfig}`);
+    console.log(
+      `[openclaw-gw] wrote default config to ${openclawConfig} (auth: ${authConfig.mode})`
+    );
   }
 
   openclawGateway = spawn(
