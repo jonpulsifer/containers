@@ -25,6 +25,7 @@ const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 8080;
 const DIST_PATH = path.join(__dirname, "dist");
+const FONTS_PATH = path.join(__dirname, "fonts");
 const WASM_PATH = path.join(__dirname, "ghostty-vt.wasm");
 
 // ============================================================================
@@ -260,6 +261,21 @@ function terminalPage(cmdId) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${toolName} \u2014 Agent Sandbox</title>
   <style>
+    @font-face {
+      font-family: 'CaskaydiaCove NF';
+      src: url('/fonts/CaskaydiaCoveNerdFont-Regular.ttf') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'CaskaydiaCove NF';
+      src: url('/fonts/CaskaydiaCoveNerdFont-Bold.ttf') format('truetype');
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body { height: 100%; overflow: hidden; background: #0a0a0f; }
@@ -392,7 +408,7 @@ function terminalPage(cmdId) {
 
     const term = new Terminal({
       fontSize: 14,
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Menlo', monospace",
+      fontFamily: "'CaskaydiaCove Nerd Font', 'CaskaydiaCove NF', 'Cascadia Code NF', 'JetBrains Mono', monospace",
       theme: {
         background: '#0a0a0f',
         foreground: '#e4e4e7',
@@ -509,6 +525,7 @@ const MIME = {
   ".wasm": "application/wasm",
   ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".ttf": "font/ttf",
 };
 
 // ============================================================================
@@ -557,6 +574,12 @@ const server = http.createServer((req, res) => {
   // ghostty-web dist files
   if (pathname.startsWith("/dist/")) {
     const filePath = path.join(DIST_PATH, pathname.slice(6));
+    return serveFile(filePath, res);
+  }
+
+  // Font files
+  if (pathname.startsWith("/fonts/")) {
+    const filePath = path.join(FONTS_PATH, pathname.slice(7));
     return serveFile(filePath, res);
   }
 

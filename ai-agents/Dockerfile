@@ -62,6 +62,12 @@ RUN npm install -g \
       opencode-ai \
       openclaw
 
+# CaskaydiaCove Nerd Font for web terminal
+ARG NERDFONT_VERSION=v3.4.0
+RUN mkdir -p /opt/ghostty-web/fonts \
+    && curl -fsSL "https://github.com/ryanoasis/nerd-fonts/releases/download/${NERDFONT_VERSION}/CascadiaCode.tar.xz" \
+       | tar -xJ -C /opt/ghostty-web/fonts --wildcards 'CaskaydiaCoveNerdFont-Regular.ttf' 'CaskaydiaCoveNerdFont-Bold.ttf'
+
 # ghostty-web assets
 COPY --from=ghostty-builder /build/dist /opt/ghostty-web/dist
 COPY --from=ghostty-builder /build/ghostty-vt.wasm /opt/ghostty-web/ghostty-vt.wasm
