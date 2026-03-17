@@ -62,11 +62,18 @@ RUN npm install -g \
       opencode-ai \
       openclaw
 
-# CaskaydiaCove Nerd Font for web terminal
+# Nerd Fonts for web terminal
 ARG NERDFONT_VERSION=v3.4.0
-RUN mkdir -p /opt/ghostty-web/fonts \
-    && curl -fsSL "https://github.com/ryanoasis/nerd-fonts/releases/download/${NERDFONT_VERSION}/CascadiaCode.tar.xz" \
-       | tar -xJ -C /opt/ghostty-web/fonts --wildcards 'CaskaydiaCoveNerdFont-Regular.ttf' 'CaskaydiaCoveNerdFont-Bold.ttf'
+RUN mkdir -p /opt/ghostty-web/fonts && \
+    for font in 0xProto CascadiaCode FiraCode GeistMono Inconsolata JetBrainsMono SpaceMono ZedMono; do \
+      curl -fsSL "https://github.com/ryanoasis/nerd-fonts/releases/download/${NERDFONT_VERSION}/${font}.tar.xz" \
+        | tar -xJ -C /opt/ghostty-web/fonts --wildcards '*Regular*' '*Bold*'; \
+    done
+
+# Geist sans-serif UI font
+RUN curl -fsSL "https://github.com/vercel/geist-font/releases/download/1.4.01/Geist.zip" -o /tmp/geist.zip \
+    && unzip -joq /tmp/geist.zip '*/Geist-Regular.otf' '*/Geist-Medium.otf' '*/Geist-SemiBold.otf' -d /opt/ghostty-web/fonts \
+    && rm /tmp/geist.zip
 
 # ghostty-web assets
 COPY --from=ghostty-builder /build/dist /opt/ghostty-web/dist

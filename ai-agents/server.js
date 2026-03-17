@@ -99,10 +99,14 @@ function landingPage() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Sandbox</title>
   <style>
+    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-Regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-Medium.otf') format('opentype'); font-weight: 500; font-display: swap; }
+    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-SemiBold.otf') format('opentype'); font-weight: 600; font-display: swap; }
+
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Geist', 'Inter', system-ui, sans-serif;
       background: #0a0a0f;
       color: #e4e4e7;
       min-height: 100vh;
@@ -261,27 +265,35 @@ function terminalPage(cmdId) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${toolName} \u2014 Agent Sandbox</title>
   <style>
-    @font-face {
-      font-family: 'CaskaydiaCove NF';
-      src: url('/fonts/CaskaydiaCoveNerdFont-Regular.ttf') format('truetype');
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
-    @font-face {
-      font-family: 'CaskaydiaCove NF';
-      src: url('/fonts/CaskaydiaCoveNerdFont-Bold.ttf') format('truetype');
-      font-weight: 700;
-      font-style: normal;
-      font-display: swap;
-    }
+    /* Geist sans-serif for UI */
+    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-Regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-Medium.otf') format('opentype'); font-weight: 500; font-display: swap; }
+    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-SemiBold.otf') format('opentype'); font-weight: 600; font-display: swap; }
+
+    /* Nerd Fonts for terminal */
+    @font-face { font-family: '0xProto NF'; src: url('/fonts/0xProtoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: '0xProto NF'; src: url('/fonts/0xProtoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'CaskaydiaCove NF'; src: url('/fonts/CaskaydiaCoveNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'CaskaydiaCove NF'; src: url('/fonts/CaskaydiaCoveNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'FiraCode NF'; src: url('/fonts/FiraCodeNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'FiraCode NF'; src: url('/fonts/FiraCodeNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'GeistMono NF'; src: url('/fonts/GeistMonoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'GeistMono NF'; src: url('/fonts/GeistMonoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'Inconsolata NF'; src: url('/fonts/InconsolataNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'Inconsolata NF'; src: url('/fonts/InconsolataNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'JetBrainsMono NF'; src: url('/fonts/JetBrainsMonoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'JetBrainsMono NF'; src: url('/fonts/JetBrainsMonoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'SpaceMono NF'; src: url('/fonts/SpaceMonoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'SpaceMono NF'; src: url('/fonts/SpaceMonoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+    @font-face { font-family: 'ZedMono NF'; src: url('/fonts/ZedMonoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+    @font-face { font-family: 'ZedMono NF'; src: url('/fonts/ZedMonoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
 
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body { height: 100%; overflow: hidden; background: #0a0a0f; }
 
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Geist', 'Inter', system-ui, sans-serif;
       color: #e4e4e7;
       display: flex;
       flex-direction: column;
@@ -320,6 +332,23 @@ function terminalPage(cmdId) {
     }
 
     .toolbar-spacer { flex: 1; }
+
+    .font-picker {
+      appearance: none;
+      background: #27272a;
+      color: #a1a1aa;
+      border: 1px solid #3f3f46;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      font-family: 'Geist', 'Inter', system-ui, sans-serif;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.15s;
+    }
+
+    .font-picker:hover { border-color: #52525b; color: #e4e4e7; }
+    .font-picker:focus { border-color: #60a5fa; }
 
     .status {
       display: flex;
@@ -390,6 +419,16 @@ function terminalPage(cmdId) {
     <a class="back-btn" href="/">\u2190</a>
     <span class="toolbar-title">${toolName}</span>
     <div class="toolbar-spacer"></div>
+    <select class="font-picker" id="font-picker">
+      <option value="CaskaydiaCove NF">Cascadia Code</option>
+      <option value="0xProto NF">0xProto</option>
+      <option value="FiraCode NF">Fira Code</option>
+      <option value="GeistMono NF">Geist Mono</option>
+      <option value="Inconsolata NF">Inconsolata</option>
+      <option value="JetBrainsMono NF">JetBrains Mono</option>
+      <option value="SpaceMono NF">Space Mono</option>
+      <option value="ZedMono NF">Zed Mono</option>
+    </select>
     <div class="status">
       <div class="status-dot connecting" id="status-dot"></div>
       <span id="status-text">Connecting</span>
@@ -406,9 +445,24 @@ function terminalPage(cmdId) {
 
     await init();
 
+    const FONTS = {
+      'CaskaydiaCove NF': "'CaskaydiaCove NF', monospace",
+      '0xProto NF': "'0xProto NF', monospace",
+      'FiraCode NF': "'FiraCode NF', monospace",
+      'GeistMono NF': "'GeistMono NF', monospace",
+      'Inconsolata NF': "'Inconsolata NF', monospace",
+      'JetBrainsMono NF': "'JetBrainsMono NF', monospace",
+      'SpaceMono NF': "'SpaceMono NF', monospace",
+      'ZedMono NF': "'ZedMono NF', monospace",
+    };
+
+    const savedFont = localStorage.getItem('terminal-font') || 'CaskaydiaCove NF';
+    const picker = document.getElementById('font-picker');
+    picker.value = savedFont;
+
     const term = new Terminal({
       fontSize: 14,
-      fontFamily: "'CaskaydiaCove Nerd Font', 'CaskaydiaCove NF', 'Cascadia Code NF', 'JetBrains Mono', monospace",
+      fontFamily: FONTS[savedFont] || FONTS['CaskaydiaCove NF'],
       theme: {
         background: '#0a0a0f',
         foreground: '#e4e4e7',
@@ -507,6 +561,14 @@ function terminalPage(cmdId) {
     });
 
     window.addEventListener('resize', () => { if (fitAddon) fitAddon.fit(); });
+
+    // Font picker
+    picker.addEventListener('change', () => {
+      const font = picker.value;
+      localStorage.setItem('terminal-font', font);
+      term.options.fontFamily = FONTS[font] || FONTS['CaskaydiaCove NF'];
+      if (fitAddon) fitAddon.fit();
+    });
   </script>
 </body>
 </html>`;
@@ -526,6 +588,7 @@ const MIME = {
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".ttf": "font/ttf",
+  ".otf": "font/otf",
 };
 
 // ============================================================================
