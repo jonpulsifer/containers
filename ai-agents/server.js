@@ -3,8 +3,9 @@
 /**
  * Agent Sandbox Web Terminal Server
  *
- * Serves a landing page with tool selection and a full-viewport
- * ghostty-web terminal connected to a PTY running the chosen command.
+ * Lean backend: serves pre-built HTML/CSS/JS from dist/, manages PTY
+ * sessions over WebSocket, and runs the OpenClaw gateway as a background
+ * service with automatic restart.
  */
 
 import { spawn } from "child_process";
@@ -24,9 +25,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 8080;
-const DIST_PATH = path.join(__dirname, "dist");
-const FONTS_PATH = path.join(__dirname, "fonts");
+const GHOSTTY_DIST = path.join(__dirname, "dist");
 const WASM_PATH = path.join(__dirname, "ghostty-vt.wasm");
+const APP_DIST = path.join(__dirname, "app");
 
 // ============================================================================
 // Tool definitions
@@ -37,21 +38,21 @@ const TOOLS = [
     id: "claude",
     name: "Claude Code",
     description: "AI coding assistant by Anthropic",
-    icon: "\u2728",
+    icon: "/assets/icons/claude.svg",
     cmd: "claude",
   },
   {
     id: "opencode",
     name: "OpenCode",
     description: "Terminal-based AI coding agent",
-    icon: "\u2b21",
+    icon: "/assets/icons/opencode.svg",
     cmd: "opencode",
   },
   {
     id: "openclaw",
     name: "OpenClaw TUI",
     description: "Self-hosted AI assistant terminal interface",
-    icon: "\ud83e\udea4",
+    icon: "/assets/icons/openclaw.svg",
     cmd: "openclaw",
     args: ["tui"],
   },
@@ -59,14 +60,14 @@ const TOOLS = [
     id: "openclaw-gw",
     name: "OpenClaw Gateway",
     description: "Web dashboard for the OpenClaw gateway",
-    icon: "\u2699",
+    icon: "/assets/icons/openclaw.svg",
     href: ":18789",
   },
   {
     id: "bash",
     name: "Shell",
     description: "Interactive bash session",
-    icon: "\u276f",
+    icon: "/assets/icons/ghostty-icon.png",
     cmd: null, // uses $SHELL
   },
 ];
@@ -88,490 +89,24 @@ function getToolName(cmdId) {
 }
 
 // ============================================================================
-// HTML Templates
+// Template injection
 // ============================================================================
 
-function landingPage() {
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent Sandbox</title>
-  <style>
-    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-Regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-Medium.otf') format('opentype'); font-weight: 500; font-display: swap; }
-    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-SemiBold.otf') format('opentype'); font-weight: 600; font-display: swap; }
-
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'Geist', 'Inter', system-ui, sans-serif;
-      background: #0a0a0f;
-      color: #e4e4e7;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2rem;
+function serveTemplate(file, config, res) {
+  const filePath = path.join(APP_DIST, file);
+  fs.readFile(filePath, "utf8", (err, html) => {
+    if (err) {
+      res.writeHead(500);
+      res.end("Internal Server Error");
+      return;
     }
-
-    .container {
-      max-width: 720px;
-      width: 100%;
-      text-align: center;
-    }
-
-    .logo {
-      font-size: 3rem;
-      margin-bottom: 0.5rem;
-      filter: grayscale(0.2);
-    }
-
-    h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      margin-bottom: 0.5rem;
-      background: linear-gradient(135deg, #e4e4e7, #a1a1aa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .subtitle {
-      color: #71717a;
-      font-size: 0.95rem;
-      margin-bottom: 2.5rem;
-      line-height: 1.5;
-    }
-
-    .tools {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin-bottom: 3rem;
-    }
-
-    .tool-card {
-      background: #18181b;
-      border: 1px solid #27272a;
-      border-radius: 12px;
-      padding: 1.75rem 1.25rem;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .tool-card:hover {
-      border-color: #3f3f46;
-      background: #1f1f23;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    }
-
-    .tool-card:active {
-      transform: translateY(0);
-    }
-
-    .tool-icon {
-      font-size: 2rem;
-      width: 56px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #27272a;
-      border-radius: 12px;
-    }
-
-    .tool-name {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #fafafa;
-    }
-
-    .tool-desc {
-      font-size: 0.8rem;
-      color: #71717a;
-      line-height: 1.4;
-    }
-
-    footer {
-      color: #3f3f46;
-      font-size: 0.75rem;
-      letter-spacing: 0.05em;
-    }
-
-    footer a {
-      color: #52525b;
-      text-decoration: none;
-    }
-
-    footer a:hover { color: #71717a; }
-
-    @media (max-width: 640px) {
-      .tools { grid-template-columns: 1fr; }
-      h1 { font-size: 1.5rem; }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="logo">\u25e8</div>
-    <h1>Agent Sandbox</h1>
-    <p class="subtitle">Isolated AI agent runtime with web terminal access</p>
-    <div class="tools">
-      ${TOOLS.map(
-        (t) =>
-          t.href
-            ? `
-        <a class="tool-card" data-port-href="${t.href}${openclawToken ? '#token=' + openclawToken : ''}" target="_blank" rel="noopener">
-          <div class="tool-icon">${t.icon}</div>
-          <div class="tool-name">${t.name}</div>
-          <div class="tool-desc">${t.description}</div>
-        </a>`
-            : `
-        <a class="tool-card" href="/terminal?cmd=${t.id}">
-          <div class="tool-icon">${t.icon}</div>
-          <div class="tool-name">${t.name}</div>
-          <div class="tool-desc">${t.description}</div>
-        </a>`
-      ).join("")}
-    </div>
-    <footer>Powered by <a href="https://github.com/coder/ghostty-web">ghostty-web</a> + <a href="https://gvisor.dev">gVisor</a></footer>
-  </div>
-  <script>
-    document.querySelectorAll('[data-port-href]').forEach(a => {
-      a.href = location.protocol + '//' + location.hostname + a.dataset.portHref;
-    });
-  </script>
-</body>
-</html>`;
-}
-
-function terminalPage(cmdId) {
-  const toolName = getToolName(cmdId);
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${toolName} \u2014 Agent Sandbox</title>
-  <style>
-    /* Geist sans-serif for UI */
-    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-Regular.otf') format('opentype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-Medium.otf') format('opentype'); font-weight: 500; font-display: swap; }
-    @font-face { font-family: 'Geist'; src: url('/fonts/Geist-SemiBold.otf') format('opentype'); font-weight: 600; font-display: swap; }
-
-    /* Nerd Fonts for terminal */
-    @font-face { font-family: '0xProto NF'; src: url('/fonts/0xProtoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: '0xProto NF'; src: url('/fonts/0xProtoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-    @font-face { font-family: 'CaskaydiaCove NF'; src: url('/fonts/CaskaydiaCoveNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'CaskaydiaCove NF'; src: url('/fonts/CaskaydiaCoveNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-    @font-face { font-family: 'FiraCode NF'; src: url('/fonts/FiraCodeNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'FiraCode NF'; src: url('/fonts/FiraCodeNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-    @font-face { font-family: 'GeistMono NF'; src: url('/fonts/GeistMonoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'GeistMono NF'; src: url('/fonts/GeistMonoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-    @font-face { font-family: 'Inconsolata NF'; src: url('/fonts/InconsolataNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'Inconsolata NF'; src: url('/fonts/InconsolataNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-    @font-face { font-family: 'JetBrainsMono NF'; src: url('/fonts/JetBrainsMonoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'JetBrainsMono NF'; src: url('/fonts/JetBrainsMonoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-    @font-face { font-family: 'SpaceMono NF'; src: url('/fonts/SpaceMonoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'SpaceMono NF'; src: url('/fonts/SpaceMonoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-    @font-face { font-family: 'ZedMono NF'; src: url('/fonts/ZedMonoNerdFont-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
-    @font-face { font-family: 'ZedMono NF'; src: url('/fonts/ZedMonoNerdFont-Bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-    html, body { height: 100%; overflow: hidden; background: #0a0a0f; }
-
-    body {
-      font-family: 'Geist', 'Inter', system-ui, sans-serif;
-      color: #e4e4e7;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .toolbar {
-      height: 40px;
-      min-height: 40px;
-      background: #18181b;
-      border-bottom: 1px solid #27272a;
-      display: flex;
-      align-items: center;
-      padding: 0 12px;
-      gap: 12px;
-      z-index: 10;
-    }
-
-    .back-btn {
-      color: #71717a;
-      text-decoration: none;
-      font-size: 1.1rem;
-      display: flex;
-      align-items: center;
-      padding: 4px 8px;
-      border-radius: 6px;
-      transition: all 0.15s;
-    }
-
-    .back-btn:hover { color: #a1a1aa; background: #27272a; }
-
-    .toolbar-title {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: #a1a1aa;
-      letter-spacing: 0.02em;
-    }
-
-    .toolbar-spacer { flex: 1; }
-
-    .font-picker {
-      appearance: none;
-      background: #27272a;
-      color: #a1a1aa;
-      border: 1px solid #3f3f46;
-      border-radius: 6px;
-      padding: 2px 8px;
-      font-size: 0.7rem;
-      font-family: 'Geist', 'Inter', system-ui, sans-serif;
-      cursor: pointer;
-      outline: none;
-      transition: all 0.15s;
-    }
-
-    .font-picker:hover { border-color: #52525b; color: #e4e4e7; }
-    .font-picker:focus { border-color: #60a5fa; }
-
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.7rem;
-      color: #52525b;
-    }
-
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #52525b;
-      transition: background 0.3s;
-    }
-
-    .status-dot.connected { background: #22c55e; }
-    .status-dot.connecting { background: #eab308; animation: pulse 1.2s infinite; }
-    .status-dot.disconnected { background: #ef4444; }
-
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-    #terminal {
-      flex: 1;
-      background: #0a0a0f;
-      overflow: hidden;
-    }
-
-    #terminal canvas { display: block; }
-
-    .session-ended {
-      display: none;
-      position: absolute;
-      inset: 0;
-      background: rgba(10, 10, 15, 0.92);
-      z-index: 20;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .session-ended.visible { display: flex; }
-
-    .session-ended h2 {
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: #a1a1aa;
-    }
-
-    .session-ended a {
-      color: #0a0a0f;
-      background: #e4e4e7;
-      text-decoration: none;
-      padding: 0.5rem 1.25rem;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      transition: background 0.15s;
-    }
-
-    .session-ended a:hover { background: #fafafa; }
-  </style>
-</head>
-<body>
-  <div class="toolbar">
-    <a class="back-btn" href="/">\u2190</a>
-    <span class="toolbar-title">${toolName}</span>
-    <div class="toolbar-spacer"></div>
-    <select class="font-picker" id="font-picker">
-      <option value="CaskaydiaCove NF">Cascadia Code</option>
-      <option value="0xProto NF">0xProto</option>
-      <option value="FiraCode NF">Fira Code</option>
-      <option value="GeistMono NF">Geist Mono</option>
-      <option value="Inconsolata NF">Inconsolata</option>
-      <option value="JetBrainsMono NF">JetBrains Mono</option>
-      <option value="SpaceMono NF">Space Mono</option>
-      <option value="ZedMono NF">Zed Mono</option>
-    </select>
-    <div class="status">
-      <div class="status-dot connecting" id="status-dot"></div>
-      <span id="status-text">Connecting</span>
-    </div>
-  </div>
-  <div id="terminal"></div>
-  <div class="session-ended" id="session-ended">
-    <h2>Session ended</h2>
-    <a href="/">Back to launcher</a>
-  </div>
-
-  <script type="module">
-    import { init, Terminal } from '/dist/ghostty-web.js';
-
-    await init();
-
-    const FONTS = {
-      'CaskaydiaCove NF': "'CaskaydiaCove NF', monospace",
-      '0xProto NF': "'0xProto NF', monospace",
-      'FiraCode NF': "'FiraCode NF', monospace",
-      'GeistMono NF': "'GeistMono NF', monospace",
-      'Inconsolata NF': "'Inconsolata NF', monospace",
-      'JetBrainsMono NF': "'JetBrainsMono NF', monospace",
-      'SpaceMono NF': "'SpaceMono NF', monospace",
-      'ZedMono NF': "'ZedMono NF', monospace",
-    };
-
-    const savedFont = localStorage.getItem('terminal-font') || 'CaskaydiaCove NF';
-    const picker = document.getElementById('font-picker');
-    picker.value = savedFont;
-
-    const term = new Terminal({
-      fontSize: 14,
-      fontFamily: FONTS[savedFont] || FONTS['CaskaydiaCove NF'],
-      theme: {
-        background: '#0a0a0f',
-        foreground: '#e4e4e7',
-        cursor: '#e4e4e7',
-        cursorAccent: '#0a0a0f',
-        selectionBackground: '#3f3f46',
-        black: '#27272a',
-        red: '#f87171',
-        green: '#4ade80',
-        yellow: '#facc15',
-        blue: '#60a5fa',
-        magenta: '#c084fc',
-        cyan: '#22d3ee',
-        white: '#e4e4e7',
-        brightBlack: '#52525b',
-        brightRed: '#fca5a5',
-        brightGreen: '#86efac',
-        brightYellow: '#fde68a',
-        brightBlue: '#93c5fd',
-        brightMagenta: '#d8b4fe',
-        brightCyan: '#67e8f9',
-        brightWhite: '#fafafa',
-      },
-    });
-
-    // Dynamic import for FitAddon — handle both named and default export
-    let FitAddon;
-    try {
-      const mod = await import('/dist/ghostty-web.js');
-      FitAddon = mod.FitAddon;
-    } catch (e) {}
-    if (!FitAddon) {
-      try {
-        const mod = await import('/dist/addons/fit.js');
-        FitAddon = mod.FitAddon || mod.default;
-      } catch (e) {}
-    }
-
-    let fitAddon;
-    if (FitAddon) {
-      fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
-    }
-
-    const container = document.getElementById('terminal');
-    await term.open(container);
-
-    if (fitAddon) {
-      fitAddon.fit();
-      if (fitAddon.observeResize) fitAddon.observeResize();
-    }
-
-    // Status
-    const dot = document.getElementById('status-dot');
-    const text = document.getElementById('status-text');
-    function setStatus(s, label) {
-      dot.className = 'status-dot ' + s;
-      text.textContent = label;
-    }
-
-    // WebSocket
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const cmd = new URLSearchParams(location.search).get('cmd') || 'bash';
-    let ws;
-    let intentionalClose = false;
-
-    function connect() {
-      setStatus('connecting', 'Connecting');
-      const url = proto + '//' + location.host + '/ws?cmd=' + encodeURIComponent(cmd) + '&cols=' + term.cols + '&rows=' + term.rows;
-      ws = new WebSocket(url);
-
-      ws.onopen = () => setStatus('connected', 'Connected');
-
-      ws.onmessage = (e) => term.write(e.data);
-
-      ws.onclose = (e) => {
-        setStatus('disconnected', 'Disconnected');
-        if (!intentionalClose) {
-          document.getElementById('session-ended').classList.add('visible');
-        }
-      };
-
-      ws.onerror = () => setStatus('disconnected', 'Error');
-    }
-
-    connect();
-
-    term.onData((data) => {
-      if (ws && ws.readyState === WebSocket.OPEN) ws.send(data);
-    });
-
-    term.onResize(({ cols, rows }) => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize', cols, rows }));
-      }
-    });
-
-    window.addEventListener('resize', () => { if (fitAddon) fitAddon.fit(); });
-
-    // Font picker
-    picker.addEventListener('change', () => {
-      const font = picker.value;
-      localStorage.setItem('terminal-font', font);
-      term.options.fontFamily = FONTS[font] || FONTS['CaskaydiaCove NF'];
-      if (fitAddon) fitAddon.fit();
-    });
-  </script>
-</body>
-</html>`;
+    const injected = html.replace(
+      "<!--__SERVER_CONFIG__-->",
+      `<script>window.__CONFIG__=${JSON.stringify(config)}</script>`
+    );
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(injected);
+  });
 }
 
 // ============================================================================
@@ -589,6 +124,7 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".ttf": "font/ttf",
   ".otf": "font/otf",
+  ".woff2": "font/woff2",
 };
 
 // ============================================================================
@@ -621,28 +157,36 @@ const server = http.createServer((req, res) => {
 
   // Landing page
   if (pathname === "/" || pathname === "/index.html") {
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(landingPage());
-    return;
+    return serveTemplate("landing.html", {
+      tools: TOOLS,
+      openclawToken: openclawToken,
+    }, res);
   }
 
   // Terminal page
   if (pathname === "/terminal") {
     const cmd = url.searchParams.get("cmd") || "bash";
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(terminalPage(cmd));
-    return;
+    return serveTemplate("terminal.html", {
+      cmdId: cmd,
+      toolName: getToolName(cmd),
+    }, res);
+  }
+
+  // Our built assets (CSS, JS, icons, fonts)
+  if (pathname.startsWith("/assets/")) {
+    const filePath = path.join(APP_DIST, pathname.slice(8));
+    return serveFile(filePath, res);
+  }
+
+  // Font files (served from our dist)
+  if (pathname.startsWith("/fonts/")) {
+    const filePath = path.join(APP_DIST, "fonts", pathname.slice(7));
+    return serveFile(filePath, res);
   }
 
   // ghostty-web dist files
   if (pathname.startsWith("/dist/")) {
-    const filePath = path.join(DIST_PATH, pathname.slice(6));
-    return serveFile(filePath, res);
-  }
-
-  // Font files
-  if (pathname.startsWith("/fonts/")) {
-    const filePath = path.join(FONTS_PATH, pathname.slice(7));
+    const filePath = path.join(GHOSTTY_DIST, pathname.slice(6));
     return serveFile(filePath, res);
   }
 

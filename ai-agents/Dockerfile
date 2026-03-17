@@ -29,7 +29,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /build
 RUN npm install @lydell/node-pty ws
 
-# ── Stage 3: Final image ────────────────────────────────────
+# ── Stage 3: Build frontend assets (HTML/CSS/JS) ─────────────
+FROM oven/bun:latest AS frontend-builder
+
+WORKDIR /build
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+COPY src/ src/
+COPY public/ public/
+COPY build.ts ./
+RUN bun run build
+
+# ── Stage 4: Final image ────────────────────────────────────
 FROM node:24-slim
 
 RUN apt-get update && apt-get -y upgrade && \
@@ -45,6 +56,7 @@ RUN apt-get update && apt-get -y upgrade && \
       ripgrep \
       unzip \
       wget \
+      xz-utils \
       zip \
     && install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
@@ -62,25 +74,15 @@ RUN npm install -g \
       opencode-ai \
       openclaw
 
-# Nerd Fonts for web terminal
-ARG NERDFONT_VERSION=v3.4.0
-RUN mkdir -p /opt/ghostty-web/fonts && \
-    for font in 0xProto CascadiaCode FiraCode GeistMono Inconsolata JetBrainsMono SpaceMono ZedMono; do \
-      curl -fsSL "https://github.com/ryanoasis/nerd-fonts/releases/download/${NERDFONT_VERSION}/${font}.tar.xz" \
-        | tar -xJ -C /opt/ghostty-web/fonts --wildcards '*Regular*' '*Bold*'; \
-    done
-
-# Geist sans-serif UI font
-RUN curl -fsSL "https://github.com/vercel/geist-font/releases/download/1.4.01/Geist.zip" -o /tmp/geist.zip \
-    && unzip -joq /tmp/geist.zip '*/Geist-Regular.otf' '*/Geist-Medium.otf' '*/Geist-SemiBold.otf' -d /opt/ghostty-web/fonts \
-    && rm /tmp/geist.zip
-
-# ghostty-web assets
+# ghostty-web runtime assets
 COPY --from=ghostty-builder /build/dist /opt/ghostty-web/dist
 COPY --from=ghostty-builder /build/ghostty-vt.wasm /opt/ghostty-web/ghostty-vt.wasm
 COPY --from=pty-builder /build/node_modules /opt/ghostty-web/node_modules
 
-# Custom server
+# Frontend build output (HTML, CSS, JS, icons, fonts)
+COPY --from=frontend-builder /build/dist /opt/ghostty-web/app
+
+# Server
 COPY server.js /opt/ghostty-web/server.js
 
 # Agent user (non-root, dedicated to agent workloads)
