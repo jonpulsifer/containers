@@ -8,6 +8,7 @@
  */
 
 import { spawn } from "child_process";
+import { randomBytes } from "crypto";
 import fs from "fs";
 import http from "http";
 import { homedir } from "os";
@@ -89,7 +90,8 @@ function getToolName(cmdId) {
 // HTML Templates
 // ============================================================================
 
-const LANDING_PAGE = `<!doctype html>
+function landingPage() {
+  return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -225,7 +227,7 @@ const LANDING_PAGE = `<!doctype html>
         (t) =>
           t.href
             ? `
-        <a class="tool-card" data-port-href="${t.href}" target="_blank" rel="noopener">
+        <a class="tool-card" data-port-href="${t.href}${openclawToken ? '?token=' + openclawToken : ''}" target="_blank" rel="noopener">
           <div class="tool-icon">${t.icon}</div>
           <div class="tool-name">${t.name}</div>
           <div class="tool-desc">${t.description}</div>
@@ -247,6 +249,7 @@ const LANDING_PAGE = `<!doctype html>
   </script>
 </body>
 </html>`;
+}
 
 function terminalPage(cmdId) {
   const toolName = getToolName(cmdId);
@@ -539,7 +542,7 @@ const server = http.createServer((req, res) => {
   // Landing page
   if (pathname === "/" || pathname === "/index.html") {
     res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(LANDING_PAGE);
+    res.end(landingPage());
     return;
   }
 
@@ -656,6 +659,7 @@ wss.on("connection", (ws, req) => {
 // ============================================================================
 
 let openclawGateway = null;
+let openclawToken = null;
 let gatewayRestarts = 0;
 let shuttingDown = false;
 
@@ -671,17 +675,15 @@ function startOpenClawGateway() {
   if (!fs.existsSync(openclawConfig)) {
     fs.mkdirSync(openclawDir, { recursive: true });
 
-    const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
-    const authConfig = gatewayToken
-      ? { token: gatewayToken, mode: "token" }
-      : { mode: "none" };
+    openclawToken =
+      process.env.OPENCLAW_GATEWAY_TOKEN || randomBytes(32).toString("hex");
 
     fs.writeFileSync(
       openclawConfig,
       JSON.stringify(
         {
           gateway: {
-            auth: authConfig,
+            auth: { token: openclawToken, mode: "token" },
             controlUi: {
               dangerouslyAllowHostHeaderOriginFallback: true,
             },
@@ -691,9 +693,13 @@ function startOpenClawGateway() {
         2
       )
     );
-    console.log(
-      `[openclaw-gw] wrote default config to ${openclawConfig} (auth: ${authConfig.mode})`
-    );
+    console.log(`[openclaw-gw] wrote default config to ${openclawConfig}`);
+  } else {
+    // Read token from existing config
+    try {
+      const cfg = JSON.parse(fs.readFileSync(openclawConfig, "utf8"));
+      openclawToken = cfg?.gateway?.auth?.token || null;
+    } catch {}
   }
 
   openclawGateway = spawn(
