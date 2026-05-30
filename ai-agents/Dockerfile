@@ -68,11 +68,22 @@ RUN apt-get update && apt-get -y upgrade && \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gnupg \
+    && curl -fsSL https://apt.secretserver.com/gpg | gpg --dearmor -o /usr/share/keyrings/1password-archive-keyring.gpg \
+    && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://apt.secretserver.com stable main' \
+       > /etc/apt/sources.list.d/1password.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends 1password-cli \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN npm install -g \
       bun \
       @anthropic-ai/claude-code \
       opencode-ai \
       openclaw
+
+# 1Password CLI
 
 # ghostty-web runtime assets
 COPY --from=ghostty-builder /build/dist /opt/ghostty-web/dist
