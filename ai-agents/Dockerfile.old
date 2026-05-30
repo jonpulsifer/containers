@@ -72,20 +72,7 @@ RUN apt-get update && apt-get -y upgrade && \
     && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
-# 1Password CLI
-RUN curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
-      gpg --dearmor --output /usr/share/keyrings/1password-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://downloads.1password.com/linux/debian/$(dpkg --print-architecture) stable main" | \
-      tee /etc/apt/sources.list.d/1password.list && \
-    mkdir -p /etc/debsig/policies/AC2D62742012EA22/ && \
-    curl -sS https://downloads.1password.com/linux/debian/debsig/1password.pol | \
-      tee /etc/debsig/policies/AC2D62742012EA22/1password.pol && \
-    mkdir -p /usr/share/debsig/keyrings/AC2D62742012EA22/ && \
-    curl -sS https://downloads.1password.com/linux/keys/1password.asc | \
-      gpg --dearmor --output /usr/share/debsig/keyrings/AC2D62742012EA22/debsig.gpg && \
-    apt-get update && apt-get install -y --no-install-recommends 1password-cli && \
-    rm -rf /var/lib/apt/lists/*
-
+<<<<<<< HEAD
 # bun runtime — reuse the binary from the frontend build stage (oven/bun)
 COPY --from=frontend-builder /usr/local/bin/bun /usr/local/bin/bun
 
@@ -97,11 +84,26 @@ COPY --from=frontend-builder /usr/local/bin/bun /usr/local/bin/bun
 # instead of serving 503s at runtime.
 ENV BUN_INSTALL=/usr/local
 RUN bun add -g \
+=======
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gnupg \
+    && curl -fsSL https://apt.secretserver.com/gpg | gpg --dearmor -o /usr/share/keyrings/1password-archive-keyring.gpg \
+    && echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/1password-archive-keyring.gpg] https://apt.secretserver.com stable main' \
+       > /etc/apt/sources.list.d/1password.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends 1password-cli \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g \
+      bun \
+>>>>>>> d2253c4 (fix: add 1password-cli to the agent image)
       @anthropic-ai/claude-code \
       opencode-ai \
       openclaw \
  && bun add -g --ignore-scripts @earendil-works/pi-coding-agent \
  && test -f /usr/local/install/global/node_modules/openclaw/dist/control-ui/index.html
+
+# 1Password CLI
 
 # ghostty-web runtime assets
 COPY --from=ghostty-builder /build/dist /opt/ghostty-web/dist
